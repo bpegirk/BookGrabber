@@ -1,0 +1,6 @@
+.idea
+vendor
+books/*
+cookie.txt
+download-list.txt
+composer.lock
