@@ -2,6 +2,8 @@
 
 namespace classess;
 
+use GuzzleHttp\Client;
+
 
 /**
  * Class Book
@@ -10,14 +12,14 @@ namespace classess;
 class Book
 {
     private $bookUrl = '';
-    private $bookPageUrl = 'https://lit-era.com/reader/get-page';
+    private $bookPageUrl = 'https://litnet.com/reader/get-page';
     private $f;
     private $key = '';
 
 
     public function __construct($url)
     {
-        $this->bookUrl = $url;
+        $this->bookUrl = trim($url);
     }
 
 
@@ -39,21 +41,22 @@ class Book
             echo "Try to get chapter " . ($key + 1) . " of " . $len . " with ID#" . $chapter['id'] . "...\n";
             $this->grabChapter($chapter['id']);
         }
-
-
         $this->doneFile();
+        usleep(5000000);
     }
 
     private function getCurl($url, $params = [], $method = 'get', $isAjax = false)
     {
         $curl = new \Curl();
-        $curl->user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36';
+        $curl->user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36';
         if ($isAjax) {
-            $curl->headers['x-csrf-token'] = $this->key;
+            $curl->headers['X-CSRF-Token'] = $this->key;
             $curl->headers['X-Requested-With'] = 'XMLHttpRequest';
         }
         // cookie
         $curl->cookie_file = dirname(__FILE__) . '/../cookie.txt';
+        $curl->options['CURLOPT_SSL_VERIFYPEER'] = false;
+        $curl->options['CURLOPT_SSL_VERIFYPEER'] = false;
         if ($method == 'get') {
             $response = $curl->get($url, $params);
         } else {
@@ -64,6 +67,38 @@ class Book
             throw new \Exception('No auth. Check cookie key!', 200);
         }
         return $response;
+
+        // guzzle
+        $headers = [
+            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+        ];
+
+        if ($isAjax) {
+            $headers['X-Requested-With'] = 'XMLHttpRequest';
+            $headers['X-CSRF-Token'] = $this->key;
+        }
+        $http = new Client([
+            'headers' => $headers,
+            'cookies' => true,
+            'verify' => false,
+        ]);
+
+        echo "URL: $url, METHOD: $method, PARAMS: " . print_r($params, true);
+
+        if ($method == 'get') {
+            $response = $http->get($url, $params);
+        } else {
+            $response = $http->post($url, $params);
+        }
+        if ($response->getStatusCode() !== 200) {
+            throw new \Exception('Не верный ответ');
+        }
+        $body = $response->getBody()->getContents();
+
+        if (!$isAjax && !strstr($body, 'Павел Чернигов')) {
+            //throw new \Exception('No auth. Check cookie key!', 200);
+        }
+        return $body;
     }
 
     private function chapters()
@@ -111,10 +146,18 @@ class Book
 // get first page
         $page = 1;
         while (true) {
+            // get crypt
+            $rand = rand(1, 100);
+            $str = $rand . 'null1' . $page . '2';
+            $hash = md5($str);
+
             $params = [
                 'chapterId' => $id,
                 'page' => $page,
-                '_csrf' => $this->key
+                '_csrf' => $this->key,
+                'rain' => $rand,
+                'ngis' => $hash,
+
             ];
             $response = $this->getCurl($this->bookPageUrl, $params, 'post', true);
             if (!$response || empty($response)) {
@@ -140,7 +183,7 @@ class Book
                 break;
             }
             echo "... done. Wait for sec..\n";
-            usleep(100000);
+            usleep(3000000);
             $page++;
         }
         echo "- Chapter done\n";
