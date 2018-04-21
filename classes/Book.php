@@ -2,8 +2,6 @@
 
 namespace classess;
 
-use GuzzleHttp\Client;
-
 
 /**
  * Class Book
